@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Horoscope Timeline Engine</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <style>
+    :root {
+      --bg: #050509;
+      --card-bg: #10101a;
+      --card-border: #24243a;
+      --accent: #5c5cff;
+      --text-main: #ffffff;
+      --text-sub: #a0a0b5;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        system-ui, sans-serif;
+      background: radial-gradient(circle at top, #141432 0, #050509 55%);
+      color: var(--text-main);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 16px 20px 8px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+
+    .horizon-row {
+      display: flex;
+      padding: 10px 16px;
+      gap: 8px;
+      overflow-x: auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    .horizon-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #303046;
+      font-size: 13px;
+      color: #c6c6df;
+      white-space: nowrap;
+      cursor: pointer;
+      background: transparent;
+      outline: none;
+      transition: background 0.15s, border-color 0.15s, color 0.15s,
+        transform 0.1s;
+    }
+
+    .horizon-pill.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .horizon-pill:active {
+      transform: scale(0.96);
+    }
+
+    .mode-badge-container {
+      padding: 0 20px 4px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .mode-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .mode-badge.sym {
+      background: #1b4332;
+    }
+
+    .mode-badge.asym {
+      background: #5c1a1a;
+    }
+
+    .cards-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 12px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.35);
+      transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+
+    .card.active {
+      border-color: var(--accent);
+      box-shadow: 0 18px 45px rgba(92, 92, 255, 0.35);
+    }
+
+    .card:active {
+      transform: scale(0.98);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .card-element {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .card-label {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .card-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    .card-meta-value {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .card-prescription {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--text-main);
+    }
+
+    /* Animated energy field */
+    .field-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .field-orb {
+      margin-top: 10vh;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 35px rgba(255, 255, 255, 0.35);
+      filter: blur(0.1px);
+      transition:
+        background 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.4s ease,
+        opacity 0.3s ease;
+      opacity: 0.6;
+      animation: fieldPulse 4s ease-in-out infinite;
+    }
+
+    @keyframes fieldPulse {
+      0% {
+        transform: scale(1) rotate(0deg);
+        box-shadow: 0 0 35px rgba(255, 255, 255, 0.35);
+      }
+      50% {
+        transform: scale(1.06) rotate(4deg);
+        box-shadow: 0 0 55px rgba(255, 255, 255, 0.5);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        box-shadow: 0 0 35px rgba(255, 255, 255, 0.35);
+      }
+    }
+
+    /* Element color themes */
+    .field-fire {
+      background: radial-gradient(circle at 30% 20%, #ffb19955, #ff084455);
+    }
+
+    .field-earth {
+      background: radial-gradient(circle at 30% 20%, #e1ffb355, #48b16455);
+    }
+
+    .field-air {
+      background: radial-gradient(circle at 30% 20%, #9ff1ff55, #3e7eff55);
+    }
+
+    .field-water {
+      background: radial-gradient(circle at 30% 20%, #b0e6ff55, #225fcf55);
+    }
+
+    .field-aether {
+      background: radial-gradient(circle at 30% 20%, #f0b7ff55, #7b1ecf55);
+    }
+
+    .field-field {
+      background: radial-gradient(circle at 30% 20%, #ffe7a255, #f2994a55);
+    }
+
+    /* Symmetry vs asymmetry distortions */
+    .field-symmetry {
+      transform: scale(1) rotate(0deg) skewX(0deg);
+    }
+
+    .field-asymmetry {
+      transform: scale(1.08) rotate(6deg) skewX(10deg);
+    }
+
+    /* Intensity variations (additive) */
+    .field-intensity-low {
+      opacity: 0.55;
+      box-shadow: 0 0 30px rgba(255, 255, 255, 0.25);
+    }
+
+    .field-intensity-medium {
+      opacity: 0.8;
+      box-shadow: 0 0 45px rgba(255, 255, 255, 0.4);
+    }
+
+    .field-intensity-high {
+      opacity: 1;
+      box-shadow: 0 0 65px rgba(255, 255, 255, 0.65);
+    }
+
+    .footer-note {
+      padding: 6px 16px 10px;
+      font-size: 11px;
+      color: #777892;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Animated "energy field" background -->
+    <div class="field-layer">
+      <div id="fieldOrb" class="field-orb field-fire field-symmetry field-intensity-low"></div>
+    </div>
+
+    <!-- Main UI -->
+    <div class="header">
+      <h1 class="title">Horoscope Timeline</h1>
+      <p class="subtitle">
+        Time-curved elemental map (demo, all logic runs in this file)
+      </p>
+    </div>
+
+    <div class="horizon-row" id="horizonRow"></div>
+
+    <div class="mode-badge-container">
+      <div id="modeBadge" class="mode-badge sym">
+        <span id="modeText">Symmetry Mode</span>
+      </div>
+    </div>
+
+    <div class="cards-scroll" id="cardsContainer"></div>
+
+    <div class="footer-note">
+      Single-file demo: natal vs current, 7 horizons, symmetry/asymmetry, and prescriptions.
+    </div>
+  </div>
+
+  <script>
+    // ------- Core data types in JS form -------
+
+    const HORIZONS = ["1d", "4d", "1w", "1m", "6m", "1y", "8y"];
+    const HORIZON_LABELS = {
+      "1d": "Today (1 day)",
+      "4d": "Next 4 days",
+      "1w": "Next week",
+      "1m": "Next month",
+      "6m": "Next 6 months",
+      "1y": "Next year",
+      "8y": "Next 8 years"
+    };
+    const HORIZON_SHORT = {
+      "1d": "1D",
+      "4d": "4D",
+      "1w": "1W",
+      "1m": "1M",
+      "6m": "6M",
+      "1y": "1Y",
+      "8y": "8Y"
+    };
+
+    const ELEMENTS = ["Fire", "Earth", "Air", "Water", "Aether", "Field"];
+
+    // Sample high-level profiles (these would be computed in your full system):
+    const natalProfile = {
+      Fire: 0.22,
+      Earth: 0.18,
+      Air: 0.20,
+      Water: 0.16,
+      Aether: 0.12,
+      Field: 0.12,
+      Total: 1
+    };
+
+    const currentProfile = {
+      Fire: 0.15,
+      Earth: 0.24,
+      Air: 0.18,
+      Water: 0.22,
+      Aether: 0.11,
+      Field: 0.10,
+      Total: 1
+    };
+
+    const ACTION_RULES = {
+      Fire: {
+        high: "Activate Fire (Tetrahedron)",
+        low: "Purify Water (Icosahedron)"
+      },
+      Earth: {
+        high: "Activate Earth (Cube)",
+        low: "Purify Air (Octahedron)"
+      },
+      Air: {
+        high: "Activate Air (Octahedron)",
+        low: "Ground Earth (Cube)"
+      },
+      Water: {
+        high: "Activate Water (Icosahedron)",
+        low: "Ignite Fire (Tetrahedron)"
+      },
+      Aether: {
+        high: "Activate Aether (Dodecahedron)",
+        low: "Secure Field (Torus/Sphere)"
+      },
+      Field: {
+        high: "Secure Field (Torus/Sphere)",
+        low: "Expand Aether (Dodecahedron)"
+      }
+    };
+
+    const BASE_HORIZON_FACTORS = {
+      "1d": 0.30,
+      "4d": 0.45,
+      "1w": 0.60,
+      "1m": 0.80,
+      "6m": 1.00,
+      "1y": 1.10,
+      "8y": 1.30
+    };
+
+    function computePrescriptions(natal, current) {
+      const deltas = {};
+      const actions = {};
+
+      ELEMENTS.forEach(el => {
+        const d = (natal[el] || 0) - (current[el] || 0);
+        deltas[el] = d;
+        if (d > 0.15) {
+          actions[el] = ACTION_RULES[el].high;
+        } else if (d < -0.15) {
+          actions[el] = ACTION_RULES[el].low;
+        } else {
+          actions[el] = "Maintain Coherence";
+        }
+      });
+
+      const absVals = ELEMENTS.map(el => Math.abs(deltas[el]));
+      const maxAbs = Math.max.apply(null, absVals);
+      let urgentElement = "Fire";
+      ELEMENTS.forEach(el => {
+        if (Math.abs(deltas[el]) === maxAbs) urgentElement = el;
+      });
+
+      return {
+        deltas,
+        actions,
+        urgent: actions[urgentElement],
+        urgentElement
+      };
+    }
+
+    function computeHoroscopeTimeline(natal, current) {
+      const { deltas, actions, urgent, urgentElement } =
+        computePrescriptions(natal, current);
+
+      const elements = ELEMENTS.map(el => {
+        const baseDelta = deltas[el];
+        const baseAction = actions[el];
+
+        const horizons = HORIZONS.map(h => {
+          const factor = BASE_HORIZON_FACTORS[h];
+          const projectedDelta = baseDelta * factor;
+          const absVal = Math.abs(projectedDelta);
+          let intensity = "low";
+          if (absVal >= 0.25) intensity = "high";
+          else if (absVal >= 0.1) intensity = "medium";
+
+          return {
+            horizon: h,
+            projectedDelta,
+            action: baseAction,
+            intensity
+          };
+        });
+
+        return { element: el, horizons };
+      });
+
+      return {
+        elements,
+        urgentNow: {
+          element: urgentElement,
+          prescription: urgent
+        }
+      };
+    }
+
+    // ------- UI + state in plain JS -------
+
+    let selectedHorizon = "1d";
+    let selectedElement = null; // or a specific element name
+
+    const horizonRow = document.getElementById("horizonRow");
+    const cardsContainer = document.getElementById("cardsContainer");
+    const modeBadge = document.getElementById("modeBadge");
+    const modeText = document.getElementById("modeText");
+    const fieldOrb = document.getElementById("fieldOrb");
+
+    const timeline = computeHoroscopeTimeline(natalProfile, currentProfile);
+
+    function renderHorizons() {
+      horizonRow.innerHTML = "";
+      HORIZONS.forEach(h => {
+        const btn = document.createElement("button");
+        btn.className = "horizon-pill" + (h === selectedHorizon ? " active" : "");
+        btn.textContent = HORIZON_SHORT[h];
+        btn.addEventListener("click", () => {
+          selectedHorizon = h;
+          renderHorizons();
+          renderCards();
+        });
+        horizonRow.appendChild(btn);
+      });
+    }
+
+    function renderCards() {
+      cardsContainer.innerHTML = "";
+
+      const horizonReadings = [];
+
+      timeline.elements.forEach(elTimeline => {
+        const hData = elTimeline.horizons.find(h => h.horizon === selectedHorizon);
+        if (!hData) return;
+
+        let trend = "balanced";
+        if (hData.projectedDelta > 0) trend = "under-expressed";
+        else if (hData.projectedDelta < 0) trend = "over-expressed";
+
+        horizonReadings.push({
+          element: elTimeline.element,
+          label: HORIZON_LABELS[selectedHorizon],
+          intensity: hData.intensity,
+          trend,
+          prescription: hData.action,
+          delta: hData.projectedDelta
+        });
+      });
+
+      // Determine symmetry/asymmetry from intensities
+      const anyMediumOrHigh = horizonReadings.some(r =>
+        r.intensity === "medium" || r.intensity === "high"
+      );
+      const mode = anyMediumOrHigh ? "asymmetry" : "symmetry";
+
+      // Update badge
+      modeBadge.className = "mode-badge " + (mode === "symmetry" ? "sym" : "asym");
+      modeText.textContent = mode === "symmetry" ? "Symmetry Mode" : "Asymmetry Mode";
+
+      // Choose which element drives the visual field
+      let target = horizonReadings[0] || null;
+      if (selectedElement) {
+        const found = horizonReadings.find(r => r.element === selectedElement);
+        if (found) target = found;
+      }
+
+      if (target) {
+        updateFieldVisual(mode, selectedHorizon, target);
+      }
+
+      // Render cards
+      horizonReadings.forEach(reading => {
+        const card = document.createElement("div");
+        card.className =
+          "card" + (reading.element === selectedElement ? " active" : "");
+
+        card.addEventListener("click", () => {
+          if (selectedElement === reading.element) {
+            selectedElement = null;
+          } else {
+            selectedElement = reading.element;
+          }
+          renderCards();
+        });
+
+        const header = document.createElement("div");
+        header.className = "card-header";
+
+        const elTitle = document.createElement("div");
+        elTitle.className = "card-element";
+        elTitle.textContent = reading.element;
+        header.appendChild(elTitle);
+
+        const label = document.createElement("div");
+        label.className = "card-label";
+        label.textContent = reading.label;
+        header.appendChild(label);
+
+        card.appendChild(header);
+
+        const row = document.createElement("div");
+        row.className = "card-row";
+
+        const trend = document.createElement("div");
+        trend.className = "card-meta";
+        trend.innerHTML = 'Trend: <span class="card-meta-value">' +
+          reading.trend + "</span>";
+
+        const intensity = document.createElement("div");
+        intensity.className = "card-meta";
+        intensity.innerHTML = 'Intensity: <span class="card-meta-value">' +
+          reading.intensity.toUpperCase() + "</span>";
+
+        row.appendChild(trend);
+        row.appendChild(intensity);
+        card.appendChild(row);
+
+        const delta = document.createElement("div");
+        delta.className = "card-meta";
+        delta.innerHTML = 'Delta: <span class="card-meta-value">' +
+          (reading.delta * 100).toFixed(1) + "%</span>";
+        card.appendChild(delta);
+
+        const pres = document.createElement("div");
+        pres.className = "card-prescription";
+        pres.textContent = reading.prescription;
+        card.appendChild(pres);
+
+        cardsContainer.appendChild(card);
+      });
+    }
+
+    function updateFieldVisual(mode, horizon, reading) {
+      // Reset classes
+      fieldOrb.className = "field-orb";
+
+      // Element color
+      const el = reading.element;
+      if (el === "Fire") fieldOrb.classList.add("field-fire");
+      else if (el === "Earth") fieldOrb.classList.add("field-earth");
+      else if (el === "Air") fieldOrb.classList.add("field-air");
+      else if (el === "Water") fieldOrb.classList.add("field-water");
+      else if (el === "Aether") fieldOrb.classList.add("field-aether");
+      else if (el === "Field") fieldOrb.classList.add("field-field");
+
+      // Symmetry/asymmetry
+      if (mode === "symmetry") {
+        fieldOrb.classList.add("field-symmetry");
+      } else {
+        fieldOrb.classList.add("field-asymmetry");
+      }
+
+      // Intensity
+      const intensity = reading.intensity;
+      if (intensity === "low") fieldOrb.classList.add("field-intensity-low");
+      else if (intensity === "medium") fieldOrb.classList.add("field-intensity-medium");
+      else if (intensity === "high") fieldOrb.classList.add("field-intensity-high");
+    }
+
+    // Initial render
+    renderHorizons();
+    renderCards();
+  </script>
+</body>
+</html>
